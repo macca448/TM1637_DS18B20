@@ -1,22 +1,30 @@
 /*
- * Author: R McCleery < 
-
- * This Sketch uses ezTime library to create an NTP Local Time Clock
- * Time will adjust automatically if your zone supports Daylight Time
+ * Author: R McCleery < https://github.com/macca448/TM1637_DS18B20 >
+ * Email : macca448@gmail.com
+ * Date  : 5th July 2004
+ *
+ *
+ * Official timezone names list < https://en.wikipedia.org/wiki/List_of_tz_database_time_zones >
  * 
- * Sketch configured for ESP32 or ESP8266 with TM1637 4 digit display
+ * GPL-3.0 license (GNU) GENERAL PUBLIC LICENSE - Version 3, 29 June 2007 - <https://fsf.org/>
+ * Copyright (c) 2016 by R McCleery'. 
  * 
- * The default NTP resync period of ezTime is 30 minutes
- * If PRINT enabled
- * It prints a simple "Local Time" for seconds 1 to 9 then a detailed time print every 10 seconds
- * 
- * 
- * Provide official timezone names
- * https://en.wikipedia.org/wiki/List_of_tz_database_time_zones
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated 
+ * documentation files (the "Software"), to deal in the Software without restriction, including without 
+ * limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, 
+ * and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so,
+ * subject to the following conditions:    
+ * The above copyright ('as annotated') notice and this permission notice shall be included in all copies 
+ * or substantial portions of the Software and where the software use is visible to an end-user.  
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT 
+ * NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+ * NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, LIABILITY, WHETHER IN AN ACTION OF CONTRACT,  
+ * TORT OR OTHERWISE, ARISING FROM, OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE 
+ * OR OTHER DEALINGS IN THE SOFTWARE.
  * 
  */
 
-#define PRINT                      //Comment out for no Serial monitor prints
+//#define PRINT                    //Comment out for no Serial monitor prints
 
 #include <ezTime.h>                //Library to use our system clock for NTP time
 #include "TM1637.h"                //4 digit 7 seg display
@@ -55,15 +63,14 @@ const char* myZone PROGMEM   = "Pacific/Auckland";    //Zone list here < https:/
 const char* ssid  PROGMEM    = "MillFlat_El_Rancho";
 const char* password PROGMEM = "140824500925";
 
-#define HALF_SEC  500UL                      //Creates the blinking colon IE 500mS ON > 500mS OFF
+#define HALF_SEC  10                         //Creates the blinking (10 x DB) 500mS ON > 500mS OFF
 #define DB        50UL                       //Button de-bounce timing
 
-bool blink = false, ledState = OFF,
-    buttonPressed = false, pressed, 
-    lastPress = true, display = true;
-uint8_t lastSec, lastMin, lastHour;
-int lastTempC;
-volatile uint32_t blinkStart, currentMillis, dbMillis;
+bool      blink = false, buttonPressed = false, 
+          pressed, lastPress = true, display = true;    
+uint8_t   lastSec, lastMin, lastHour, blinkCount = 0;
+int8_t    lastTempC;
+uint32_t  dbMillis;
 
 #ifdef PRINT
   void getTheTime(bool simple){
@@ -76,13 +83,49 @@ volatile uint32_t blinkStart, currentMillis, dbMillis;
   }
 #endif
 
+void doTemp(void) {
+  sensors.requestTemperatures(); // Send the command to get temperatures
+  float temp_C = sensors.getTempCByIndex(0);
+  int8_t tempC = ((float)round(temp_C));
+  
+  #ifdef PRINT
+    Serial.print("Temperature for the device 1 (index 0) is: ");
+    Serial.print(temp_C, 1); Serial.println(" ℃");
+  #endif
+    if (tempC != DEVICE_DISCONNECTED_C) {       /* Check if reading was successful */
+        if(tempC != lastTempC) {
+          TM.displayCelsius(tempC, false);
+        }
+    } else {
+      #ifdef PRINT
+        Serial.println("Error: Could not read temperature data");
+      #endif
+    }
+    lastTempC = tempC;
+  return;
+}
+
+void doTime(uint8_t hour, uint8_t minute) {
+  TM.displayTime(hour, minute, true);
+  #ifdef PRINT
+    if(lastSec == 0 || lastSec == 10 || lastSec == 20 || 
+      lastSec == 30 || lastSec == 40 || lastSec == 50) {
+        getTheTime(0);
+    } else {
+        getTheTime(1);
+    }
+  #endif
+  return;
+}
+
 void setup() {
   #ifdef PRINT
-    Serial.begin(115200);while(!Serial){;}
+    Serial.begin(115200);
+    while(!Serial){;}
     Serial.print(" Conecting to WiFi ");
   #endif
   pinMode(LED, OUTPUT);
-  pinMode(BUTTON, INPUT_PULLUP);
+  pinMode(BUTTON, INPUT);
   TM.begin(TM_CLK, TM_DIO, TM_DIGITS);       //  Starts the TM1637 display "TM.begin(clockPin, dataPin, #digits);""
   TM.displayClear();
   TM.setBrightness(4);
@@ -108,82 +151,58 @@ void setup() {
 }
 
 void loop() {
-    
-  currentMillis = millis();
   
   events();                                                 /* Needed by ezTime for NTP updates */
+  uint8_t hour = myTZ.hour(),
+        minute = myTZ.minute(),
+        second = myTZ.second();
+
 
 /*************************************************************************************************
-*********************  Button to toggle TEMP / CLOCK  ********************************************
+*************************  Button to toggle TEMP / CLOCK  ****************************************
 *************************************************************************************************/
 
   pressed = digitalRead(BUTTON);
     if(pressed != lastPress) {
-        dbMillis = currentMillis;
+        dbMillis = millis();
         buttonPressed = true;
     }
-    if(currentMillis - dbMillis >= DB) {
+    
+    if(millis() - dbMillis >= DB) {
+      blinkCount++;
+      dbMillis = millis();
+      
       if(buttonPressed) {
-        if(pressed == LOW)
-          {
-            display = !display;
-          }
-      }
-      buttonPressed = false; 
-    }
-/*************************************************************************************************
-****************************************  Button END  ********************************************
-*************************************************************************************************/
-  
-  if(myTZ.second() != lastSec) {                          /* Using One Second to do updates */
-    lastSec = myTZ.second();
-    digitalWrite(LED, ON);                                /* blinking LED IE 500mS ON > 500mS OFF */
-    blink = true;
-    blinkStart = currentMillis;
-      if(display){
-          //NTP Clock
-          TM.displayTime(myTZ.hour(), myTZ.minute(), true);
-          digitalWrite(LED, ON);
-            if(myTZ.minute() != lastMin) {                          /* One Minute Clock Update */
-              lastMin = myTZ.minute();
-              TM.displayTime(myTZ.hour(), myTZ.minute(), true);     
-            }
-          #ifdef PRINT
-            if(lastSec == 0 || lastSec == 10 || lastSec == 20 || 
-              lastSec == 30 || lastSec == 40 || lastSec == 50) {
-                getTheTime(0);
-            } else {
-                getTheTime(1);
-            }
-          #endif
-        } else {                                                   /* Temperature with DS18B20 sensor */
-          sensors.requestTemperatures(); // Send the command to get temperatures
-          float temp_C = sensors.getTempCByIndex(0);
-          int8_t tempC= ((float)round(temp_C));
-          #ifdef PRINT
-            Serial.print("Temperature for the device 1 (index 0) is: ");
-            Serial.print(temp_C, 1); Serial.println(" ℃");
-          #endif
-          // Check if reading was successful
-            if (tempC != DEVICE_DISCONNECTED_C) {
-                if(tempC != lastTempC) {
-                  TM.displayCelsius(tempC, false);
-                }
-            } else {
-              #ifdef PRINT
-                Serial.println("Error: Could not read temperature data");
-              #endif
-            }
-            lastTempC = tempC;
+        if(pressed == LOW) {
+          display = !display;
+          lastTempC = -10;
+          TM.displayClear();
         }
-  }
-
-  if(currentMillis - blinkStart >= HALF_SEC && blink) {
-    if(display) {                                                 /* Half Second Colon Blink */
-      TM.displayTime(myTZ.hour(), myTZ.minute(), false);
+        buttonPressed = false;
+      }
+      
+      if(blinkCount >= HALF_SEC && blink){
+        if(display) {                                                 /* Half Second Colon Blink */
+          TM.displayTime(hour, minute, false);
+          blink = false;
+        }
+        digitalWrite(LED, OFF);                                       /* blinking LED IE 500mS ON > 500mS OFF */
+      }
     }
-    digitalWrite(LED, OFF);                                       /* blinking LED IE 500mS ON > 500mS OFF */
-    blink = false;
+/***************************************↑↑↑↑↑↑↑↑↑↑↑↑↑↑↑********************************************/
+/***************************************|  Button END |********************************************/
+/***************************************↓↓↓↓↓↓↓↓↓↓↓↓↓↓↓********************************************/
+  
+  if(second != lastSec) {                          /* Using One Second to do updates */
+    digitalWrite(LED, ON);                         /* blinking LED IE 500mS ON > 500mS OFF */
+    blink = true;
+    blinkCount = 0;
+      if(display) {                                /* NTP Clock */
+          doTime(hour, minute);
+        } else {                                   /* Temperature with DS18B20 sensor */
+          doTemp();
+        }
+        lastSec = second;
   }
   lastPress = pressed;
 }
