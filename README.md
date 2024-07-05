@@ -15,14 +15,25 @@
 ### Sketch Functionality
 * Sketch is configured to use the FLASH/BOOT button of your ESP32/8266 to switch between Time and Temperature (℃) display.
   * NOTE: **`Display clears on change and there can be a short delay before update`**
+
+<br>
+
+
 * Configure your timezone to have correct local time with auto daylight savings time correction
   ```
   const char* myZone PROGMEM   = "Pacific/Auckland";  //Zone list here < https://en.wikipedia.org/wiki/List_of_tz_database_time_zones >
   ```
+  
+<br>
+
+
 * Print #define option to enable Serial Monitor output
   ```
   #define PRINT   //Comment out for no Serial output
   ```
+
+<br>
+
 * Sketch will auto detect your ESP32 / ESP8266. If you change any pins make sure you consider the "Strapping Pin's" boot state
 * Onboard LED blinks is in sync with second change, 500mS ON > 500mS OFF
 * TM1637 Time display also blinks the colon in sync with second change, 500mS ON > 500mS OFF
