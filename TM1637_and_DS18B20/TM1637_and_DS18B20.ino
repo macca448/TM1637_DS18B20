@@ -60,11 +60,11 @@ DallasTemperature sensors(&oneWire);  //Pass our oneWire reference to Dallas Tem
 
 const char* myZone PROGMEM   = "Pacific/Auckland";    //Zone list here < https://en.wikipedia.org/wiki/List_of_tz_database_time_zones >
 
-const char* ssid  PROGMEM    = "MillFlat_El_Rancho";
-const char* password PROGMEM = "140824500925";
+const char* ssid  PROGMEM    = "Your_WIFI_ssid";
+const char* password PROGMEM = "Your_password";
 
-#define HALF_SEC  10                         //Creates the blinking (10 x DB) 500mS ON > 500mS OFF
 #define DB        50UL                       //Button de-bounce timing
+#define HALF_SEC  10                         //Creates the blinking (10 x DB) 500mS ON > 500mS OFF
 
 bool      blink = false, buttonPressed = false, 
           pressed, lastPress = true, display = true;    
