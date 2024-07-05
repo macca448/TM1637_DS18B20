@@ -14,10 +14,10 @@
 
 ### Sketch Functionality
 * Sketch is configured to use the FLASH/BOOT button of your ESP32/8266 to switch between Time and Temperature (℃) display.
-  * NOTE: **`On change the display will clear and there may be a short delay till the second roll's and the display updates`**
+  * NOTE: **`Display clears on change and there can be a short delay before update`**
 * Configure your timezone to have correct local time with auto daylight savings time correction
   ```
-  const char* myZone PROGMEM   = "Pacific/Auckland";    //Zone list here < https://en.wikipedia.org/wiki/List_of_tz_database_time_zones >
+  const char* myZone PROGMEM   = "Pacific/Auckland";  //Zone list here < https://en.wikipedia.org/wiki/List_of_tz_database_time_zones >
   ```
 * Print #define option to enable Serial Monitor output
   ```
